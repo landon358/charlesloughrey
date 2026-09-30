@@ -544,7 +544,7 @@ em { font-style: italic; }
   /* sized and spaced off the headline so the pair holds together at every width;
      the tiny left offset lines the b's stem up with the foot of the A */
   display: block; line-height: 0;
-  margin-top: .3em; margin-left: -.013em;
+  margin-top: .1em; margin-left: .02em;
   font-size: clamp(56px, 10.5vw, 196px);
   color: #fff; text-shadow: 0 1px 18px rgba(0,0,0,.35);
   opacity: 0; transform: translateY(12px);
@@ -614,3 +614,10 @@ em { font-style: italic; }
 .menu-open .site-header::before { opacity: 0; }
 /* while the hero is still the flat logo, no scrim: it would read as a band on the colour blocks */
 body:has(.hero-fib:not(.is-photos)) .site-header::before { opacity: 0; }
+/* soft pool of shade under the consultation link so it reads over any photo */
+.hero-cta span { position: relative; text-shadow: 0 1px 2px rgba(0,0,0,.45), 0 2px 14px rgba(0,0,0,.55); }
+.hero-cta span::before {
+  content: ""; position: absolute; z-index: -1; inset: -.9em -1.4em -1.1em;
+  background: radial-gradient(closest-side, rgba(10,12,8,.5), rgba(10,12,8,.28) 55%, rgba(10,12,8,0));
+  filter: blur(6px); pointer-events: none;
+}
