@@ -563,10 +563,10 @@ em { font-style: italic; }
 .site-footer.no-cta { padding-top: clamp(56px, 9vh, 96px); }
 .site-footer.no-cta .footer-cols { border-top: 0; padding-top: 0; }
 
-/* ---------- plates: a drawing pinned full screen, text set in its open ground ---------- */
-.plate { position: relative; height: var(--plate-h, 175vh); background: var(--paper); }
+/* ---------- plates: a full-screen drawing, text set in its open ground ---------- */
+.plate { position: relative; background: var(--paper); }
 .plate-pin {
-  position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden;
+  position: relative; height: 100vh; height: 100svh; overflow: hidden;
   /* the drawing multiplies onto this, so its white paper becomes exactly the page paper */
   background: var(--paper); isolation: isolate;
   /* soften the top and bottom edges so pinned sheets hand over without a seam */
@@ -592,7 +592,6 @@ em { font-style: italic; }
 .plate-text .prose p { font-size: 15.5px; margin-bottom: .9em; }
 .plate-text .link { margin-top: 22px; }
 .plate-text > * + * { margin-top: 16px; }
-.plate.page-plate { --plate-h: 140vh; }
 .js .plate-canvas { opacity: 0; transform: scale(1.03); transition: opacity 1.4s var(--ease), transform 2.4s var(--ease); }
 .js .plate.is-in .plate-canvas { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .js .plate-canvas { opacity: 1; transform: none; } }
