@@ -153,9 +153,15 @@
 
     // stage 0: the whole screen is green. stage 1: green becomes its square, the red column appears.
     // stage 2: red becomes its square, the blue section (with its smaller squares) appears.
+    let expanded = false;
     const render = () => {
       const gap = Math.max(2, Math.round(Math.min(geo.W, geo.H) * 0.0028));
       tiles.forEach((tile, k) => {
+        if (expanded && k === 0) {
+          Object.assign(tile.el.style, { left: '0px', top: '0px', width: geo.W + 'px', height: geo.H + 'px' });
+          tile.w = geo.W; tile.h = geo.H;
+          return;
+        }
         let r;
         if (stage >= 2 || k < stage) r = geo.sq[k];
         else if (k === stage) r = geo.rem[k];
@@ -179,9 +185,10 @@
       // re-measuring must never animate the dash, or a piece of line flashes before the draw
       const len = Math.ceil(path.getTotalLength()) + 2;
       const drawn = hero.classList.contains('is-drawn');
+      const undrawn = hero.classList.contains('is-undrawn');
       path.style.transition = 'none';
       path.style.strokeDasharray = len;
-      path.style.strokeDashoffset = drawn ? 0 : len;
+      path.style.strokeDashoffset = undrawn ? -len : drawn ? 0 : len;
       void path.getBoundingClientRect();
       path.style.transition = '';
       render();
@@ -235,8 +242,22 @@
       const tile = tiles[k], p = settle[k];
       tile.fin.alt = p.a;
       tile.fin.src = pick(tile, p);
-      const on = () => requestAnimationFrame(() => tile.fin.classList.add('is-on'));
-      tile.fin.complete && tile.fin.naturalWidth ? on() : tile.fin.addEventListener('load', on, { once: true });
+      // (no requestAnimationFrame here: it pauses in background tabs, which left the
+      // final photo invisible; a forced reflow is enough to start the fade)
+      const on = () => {
+        void tile.fin.offsetWidth;
+        tile.fin.classList.add('is-on');
+        // once the final photo has faded in, retire the flicker frame beneath it
+        setTimeout(() => { tile.shuf.style.visibility = 'hidden'; }, 1300);
+      };
+      // decode() resolves even when the file came straight from cache (a plain load
+      // listener can miss that on mobile); the timeout is a last-resort safety net
+      let done = false;
+      const once = () => { if (!done) { done = true; on(); } };
+      (tile.fin.decode ? tile.fin.decode() : Promise.reject()).then(once, () => {
+        tile.fin.complete && tile.fin.naturalWidth ? once() : tile.fin.addEventListener('load', once, { once: true });
+      });
+      setTimeout(once, 3000);
     };
 
     // Which edge each tile's first photo slides in from: the first from the far side of its
@@ -293,6 +314,42 @@
       // 3. the title arrives once everything has landed
       await wait(450);
       hero.classList.add('is-titled');
+
+      // 4. three seconds later the big square opens out to fill the hero...
+      await wait(3000);
+      expanded = true;
+      hero.classList.add('is-expanded');
+      render();
+      // ...and once it has, the spiral undraws itself, from its start to its end
+      await wait(900);
+      hero.classList.add('is-undrawn');
+      path.style.strokeDashoffset = -(parseFloat(path.style.strokeDasharray) || path.getTotalLength());
+      await wait(2600);
+      tiles.slice(1).forEach((tl) => { tl.el.style.visibility = 'hidden'; });
+
+      // 5. then a slow montage of the best work, crossfading with a gentle zoom
+      const reel = (fibEl.dataset.montage || '').split(' ').map((s) => bySlug[s]).filter(Boolean);
+      if (!reel.length) return;
+      const big = tiles[0];
+      const srcFor = (p) => (Math.max(geo.W, geo.H) * (devicePixelRatio || 1) > 1600 ? p.l : p.m);
+      let m = 0, paused = document.hidden;
+      document.addEventListener('visibilitychange', () => { paused = document.hidden; });
+      new IntersectionObserver(([e]) => { paused = !e.isIntersecting; }).observe(hero);
+      loadImg(srcFor(reel[0]));
+      while (true) {
+        await wait(4200);
+        while (paused) await wait(500);
+        const p = reel[m % reel.length];
+        const im = await loadImg(srcFor(p));
+        im.alt = p.a; im.className = 'mont';
+        big.el.appendChild(im);
+        void im.offsetWidth;
+        im.classList.add('is-on');
+        loadImg(srcFor(reel[(m + 1) % reel.length]));
+        const prev = [...big.el.querySelectorAll('img')].filter((x) => x !== im);
+        setTimeout(() => prev.forEach((x) => x.remove()), 2000);
+        m++;
+      }
     })();
   }
 

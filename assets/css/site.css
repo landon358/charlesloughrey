@@ -621,3 +621,12 @@ body:has(.hero-fib:not(.is-photos)) .site-header::before { opacity: 0; }
   background: radial-gradient(closest-side, rgba(10,12,8,.5), rgba(10,12,8,.28) 55%, rgba(10,12,8,0));
   filter: blur(6px); pointer-events: none;
 }
+
+/* after the reveal: the big square fills the hero and becomes a montage */
+.hero-fib.is-expanded .fib-tile:first-child { z-index: 9; transition-duration: 1.4s; }
+.hero-fib.is-undrawn .fib-spiral path { transition: stroke-dashoffset 2.6s cubic-bezier(.55, 0, .35, 1), opacity 1.2s var(--ease); }
+.fib-tile img.mont {
+  z-index: 2; opacity: 0; transform: scale(1.08);
+  transition: opacity 1.8s var(--ease-io), transform 7s linear;
+}
+.fib-tile img.mont.is-on { opacity: 1; transform: scale(1); }
