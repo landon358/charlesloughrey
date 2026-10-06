@@ -54,24 +54,28 @@
   if (plates.length) {
     const placePlate = (pl) => {
       const pin = $('.plate-pin', pl), canvas = $('.plate-canvas', pl), text = $('.plate-text', pl);
-      const vw = pin.clientWidth, vh = pin.clientHeight, ar = parseFloat(pl.dataset.ar);
+      const vw = pin.clientWidth, vh = innerHeight, ar = parseFloat(pl.dataset.ar);
       const [x, y, w, h] = pl.dataset.region.split(',').map((n) => parseFloat(n) / 100);
-      // the drawing always covers the screen, zoomed in a little so the open ground reads larger;
-      // then slide it so that ground sits as centrally as possible
+      // The drawing spans the page width (zoomed in a little so its open ground reads larger)
+      // and is shown at its full height: the section is exactly as tall as the sheet, so the
+      // linework ends at the sheet's own edges, never at a crop line.
       const zoom = vw >= 900 ? 1.32 : 1.1;
       const cw = Math.max(vw, vh * ar) * zoom, ch = cw / ar;
       const rx = x * cw, ry = y * ch, rw = w * cw, rh = h * ch;
       const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
       const ox = clamp(vw / 2 - (rx + rw / 2), vw - cw, 0);
-      const oy = clamp(vh / 2 - (ry + rh / 2), vh - ch, 0);
-      Object.assign(canvas.style, { left: ox + 'px', top: oy + 'px', width: cw + 'px', height: ch + 'px' });
+      pin.style.height = ch + 'px';
+      Object.assign(canvas.style, { left: ox + 'px', top: '0px', width: cw + 'px', height: ch + 'px' });
       // the text fills the open ground; on narrow screens it may borrow a little extra width
       const tw = Math.min(vw - 40, 580, Math.max(rw * 0.9, Math.min(360, vw - 40)));
       text.style.width = tw + 'px';
       const left = clamp(ox + rx + (rw - tw) / 2, 20, vw - tw - 20);
       const th = text.offsetHeight;
-      const headerH = header ? header.offsetHeight : 0;
-      const top = clamp(oy + ry + (rh - th) / 2, headerH + 16, vh - th - 24);
+      const isFirst = !pl.previousElementSibling && pl.parentElement === $('main');
+      const minTop = isFirst && header ? header.offsetHeight + 16 : 16;
+      // a page's opening sheet keeps its title on the first screen
+      const maxTop = isFirst ? Math.min(ch - th - 24, vh - th - 56) : ch - th - 24;
+      const top = clamp(ry + (rh - th) / 2, minTop, maxTop);
       Object.assign(text.style, { left: left + 'px', top: top + 'px' });
     };
     const placeAll = () => plates.forEach(placePlate);
@@ -307,7 +311,8 @@
       hero.classList.add('is-drawn'); path.style.strokeDashoffset = 0;
       await wait(750);
       stage = 2; render();
-      await Promise.all([wait(1500), framesReady]);
+      // wait for the flicker frames, but never hold the logo more than ~2.5s on a slow connection
+      await Promise.all([wait(1500), Promise.race([framesReady, wait(2500)])]);
       // 2. every tile explodes into photographs at once, then slows and settles (big tile last)
       hero.classList.add('is-photos');
       await Promise.all(tiles.map((_, k) => explode(k, k * 170, 3200 + (N - 1 - k) * 150)));
@@ -337,7 +342,7 @@
       new IntersectionObserver(([e]) => { paused = !e.isIntersecting; }).observe(hero);
       loadImg(srcFor(reel[0]));
       while (true) {
-        await wait(4200);
+        await wait(2600);
         while (paused) await wait(500);
         const p = reel[m % reel.length];
         const im = await loadImg(srcFor(p));
@@ -347,7 +352,7 @@
         im.classList.add('is-on');
         loadImg(srcFor(reel[(m + 1) % reel.length]));
         const prev = [...big.el.querySelectorAll('img')].filter((x) => x !== im);
-        setTimeout(() => prev.forEach((x) => x.remove()), 2000);
+        setTimeout(() => prev.forEach((x) => x.remove()), 1200);
         m++;
       }
     })();
@@ -413,10 +418,11 @@
       const cat = b.dataset.filter;
       $$('.masonry .item').forEach((it) => it.classList.toggle('is-hidden', cat !== 'all' && it.dataset.cat !== cat));
       lenis?.resize();
-      history.replaceState(null, '', cat === 'all' ? location.pathname : '#' + cat);
+      history.replaceState(null, '', cat === 'all' ? location.pathname : '#' + b.dataset.slug);
     });
+    // deep links use clean slugs (#pools-waterfront); full names still work
     const h = decodeURIComponent(location.hash.slice(1));
-    if (h) $(`button[data-filter="${h}"]`, filters)?.click();
+    if (h) $$('button', filters).find((b) => b.dataset.slug === h || b.dataset.filter === h)?.click();
   }
 
   /* ---------- lightbox ---------- */

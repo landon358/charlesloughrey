@@ -265,15 +265,6 @@ em { font-style: italic; }
 }
 .drawing img {
   width: 100%;
-  --fx: 14%; --fy: 16%;
-  -webkit-mask-image:
-    linear-gradient(90deg, transparent, #000 var(--fx), #000 calc(100% - var(--fx)), transparent),
-    linear-gradient(180deg, transparent, #000 var(--fy), #000 calc(100% - var(--fy)), transparent);
-  -webkit-mask-composite: source-in;
-          mask-image:
-    linear-gradient(90deg, transparent, #000 var(--fx), #000 calc(100% - var(--fx)), transparent),
-    linear-gradient(180deg, transparent, #000 var(--fy), #000 calc(100% - var(--fy)), transparent);
-          mask-composite: intersect;
   filter: saturate(.92) contrast(1.02);
 }
 .drawing figcaption {
@@ -382,7 +373,6 @@ em { font-style: italic; }
 /* drawings page archive */
 .sheet-grid { columns: 4 240px; column-gap: calc(var(--gutter) * .75); padding-bottom: clamp(80px, 12vh, 160px); }
 .sheet-grid .drawing { break-inside: avoid; margin-bottom: calc(var(--gutter) * .75); display: block; width: 100%; }
-.sheet-grid .drawing img { --fx: 8%; --fy: 8%; }
 
 /* ---------- lightbox ---------- */
 .lightbox {
@@ -569,13 +559,6 @@ em { font-style: italic; }
   position: relative; height: 100vh; height: 100svh; overflow: hidden;
   /* the drawing multiplies onto this, so its white paper becomes exactly the page paper */
   background: var(--paper); isolation: isolate;
-  /* soften the top and bottom edges so pinned sheets hand over without a seam */
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 9%, #000 91%, transparent 100%),
-                      linear-gradient(90deg, transparent 0, #000 3%, #000 97%, transparent 100%);
-  -webkit-mask-composite: source-in;
-          mask-image: linear-gradient(180deg, transparent 0, #000 9%, #000 91%, transparent 100%),
-                      linear-gradient(90deg, transparent 0, #000 3%, #000 97%, transparent 100%);
-          mask-composite: intersect;
 }
 .plate-canvas { position: absolute; mix-blend-mode: multiply; }
 .plate-canvas img { width: 100%; height: 100%; display: block; filter: contrast(1.04); }
@@ -627,6 +610,34 @@ body:has(.hero-fib:not(.is-photos)) .site-header::before { opacity: 0; }
 .hero-fib.is-undrawn .fib-spiral path { transition: stroke-dashoffset 2.6s cubic-bezier(.55, 0, .35, 1), opacity 1.2s var(--ease); }
 .fib-tile img.mont {
   z-index: 2; opacity: 0; transform: scale(1.08);
-  transition: opacity 1.8s var(--ease-io), transform 7s linear;
+  transition: opacity 1s var(--ease-io), transform 4.6s linear;
 }
 .fib-tile img.mont.is-on { opacity: 1; transform: scale(1); }
+
+.plate-text .lede a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .2em; }
+.plate-text .lede a:hover { color: var(--green); }
+
+/* ---------- V2 hero: centred title + logo, consultation link top left ---------- */
+.hero-fib .hero-lockup { align-items: center; text-align: center; }
+.hero-logo {
+  width: clamp(220px, 24vw, 380px); height: auto; margin-top: clamp(22px, 2.8vw, 40px);
+  filter: drop-shadow(0 1px 14px rgba(0,0,0,.35));
+  opacity: 0; transform: translateY(12px);
+  transition: opacity 1s var(--ease) .3s, transform 1.2s var(--ease) .3s;
+}
+.hero-fib.is-titled .hero-logo { opacity: 1; transform: none; }
+
+.site-header .wrap { position: relative; }
+.header-cta {
+  position: absolute; left: var(--gutter); top: 50%; z-index: 2;
+  margin: 0; font-size: inherit; line-height: 1; display: inline-block;
+  opacity: 0; pointer-events: none; transform: translateY(-50%);
+  transition: opacity .6s var(--ease);
+}
+.header-cta span { font-size: clamp(15px, 1.15vw, 17px); }
+/* on the home hero the logo lives in the centre, so the corner belongs to the consultation link */
+body:has(.hero-fib) .site-header .brand { transition: opacity .6s var(--ease); }
+body:has(.hero-fib) .site-header.is-over-dark .brand { opacity: 0; pointer-events: none; }
+body:has(.hero-fib.is-titled) .site-header.is-over-dark .header-cta { opacity: 1; pointer-events: auto; }
+.menu-open .site-header .brand { opacity: 1 !important; pointer-events: auto !important; }
+.menu-open .header-cta { opacity: 0 !important; pointer-events: none !important; }
