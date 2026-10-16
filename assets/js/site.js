@@ -217,7 +217,7 @@
     const bySlug = Object.fromEntries(photos.map((p) => [p.s, p]));
     const list = (key) => (fibEl.dataset[key] || '').split(' ').map((s) => bySlug[s]).filter(Boolean);
     const entry = list('entry');      // one photo per tile for the first reveal
-    const burst = list('burst');      // rapid fire in the single pane: best photos and drawings
+    const round2 = list('round2');    // second pass around the spiral; the night tower lands in the big square
     const reel = list('montage');     // the slow montage that follows
     const landing = bySlug[fibEl.dataset.land] || photos[0];
     const wait = (ms) => new Promise((r) => setTimeout(r, reduced ? 0 : ms));
@@ -232,13 +232,9 @@
 
     // warm the cache while the logo draws
     const entryReady = Promise.all(tiles.map((tl, k) => loadImg(entrySrc(tl, entryFor(k)))));
-    const burstReady = Promise.all(burst.map((p) => loadImg(p.f)));
+    const round2Ready = Promise.all(tiles.map((tl, k) => round2[k] && loadImg(entrySrc(tl, round2[k]))));
     const landReady = loadImg(bigSrc(landing));
 
-    tiles.forEach((tile) => {
-      tile.img = document.createElement('img'); tile.img.alt = '';
-      tile.el.append(tile.img);
-    });
 
     // pale drawings get a deeper shade behind the title
     const markSheet = (p) => hero.classList.toggle('is-sheet', !!(p && p.d));
@@ -248,12 +244,17 @@
     const OFF = { left: ['-100%', '0'], right: ['100%', '0'], top: ['0', '-100%'], bottom: ['0', '100%'] };
     const FAR = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' };
     const entryFrom = (k) => (k === 0 ? FAR[geo.sq[0].d] : geo.sq[k - 1].d || 'right');
-    const slideIn = (k) => {
-      const tile = tiles[k], p = entryFor(k);
+    // a photograph slides into square k over whatever it was showing
+    const slideIn = (k, p) => {
+      const tile = tiles[k];
+      const im = document.createElement('img');
       const [sx, sy] = OFF[entryFrom(k)];
-      tile.img.style.setProperty('--sx', sx); tile.img.style.setProperty('--sy', sy);
-      tile.img.alt = p.a; tile.img.src = entrySrc(tile, p);
-      tile.img.classList.add('shuf', 'slide');
+      im.style.setProperty('--sx', sx); im.style.setProperty('--sy', sy);
+      im.alt = p.a; im.className = 'shuf slide';
+      im.src = entrySrc(tile, p);
+      tile.el.appendChild(im);
+      const prev = [...tile.el.querySelectorAll('img')].filter((x) => x !== im);
+      setTimeout(() => prev.forEach((x) => x.remove()), 900);
     };
 
     // a full-pane image that fades in over whatever is showing (landing and montage)
@@ -294,36 +295,29 @@
       stage = 2; render();
       await Promise.all([wait(1500), Promise.race([entryReady, wait(2500)])]);
 
-      // 2. one set of photographs comes in, a photo per square, sliding around the spiral
+      // 2. photographs appear one at a time along the spiral, biggest square first, winding in
       hero.classList.add('is-photos');
-      for (let k = 0; k < N; k++) { slideIn(k); await wait(170); }
-      await wait(1500);
+      for (let k = 0; k < N; k++) { slideIn(k, entryFor(k)); await wait(260); }
+      await wait(650);
 
-      // 3. the photographs give way to a single pane: the big square opens out to fill the hero
-      //    and the spiral undraws itself
+      // 3. a second pass around the spiral: the night tower arrives in the big square first,
+      //    then new photographs and drawings wind in after it
+      await Promise.race([round2Ready, wait(1500)]);
+      for (let k = 0; k < N; k++) { slideIn(k, round2[k] || entryFor(k)); await wait(260); }
+      await wait(850);
+
+      // 4. the big square opens out to fill the hero and the spiral undraws itself;
+      //    the full-resolution night tower fades in once the pane is open
       expandBig();
       await wait(500);
       undraw();
       await wait(1100);
       tiles.slice(1).forEach((tl) => { tl.el.style.visibility = 'hidden'; });
-
-      // 4. rapid fire of the best photographs and drawings in the single pane, slowing down
-      //    until it settles on the landing photograph
-      await Promise.race([burstReady, wait(1500)]);
-      const frame = big.img;
-      frame.classList.remove('slide');
-      let gap = 60, total = 0;
-      for (let i = 0; total < 3400; i++) {
-        const p = burst[i % burst.length];
-        frame.src = p.f; markSheet(p);
-        await wait(gap);
-        total += gap; gap *= 1.14;
-      }
       await landReady;
       await fadeIn(landing);
 
       // 5. the title, logo and consultation link arrive once it has landed
-      await wait(600);
+      await wait(300);
       hero.classList.add('is-titled');
 
       // 6. then the slow montage of photographs and drawings, crossfading with a gentle zoom
@@ -334,7 +328,7 @@
       loadImg(bigSrc(reel[0]));
       await wait(1400);
       while (true) {
-        await wait(2600);
+        await wait(1900);
         while (paused) await wait(500);
         await fadeIn(reel[m % reel.length]);
         loadImg(bigSrc(reel[(m + 1) % reel.length]));

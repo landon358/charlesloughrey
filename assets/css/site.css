@@ -610,7 +610,7 @@ body:has(.hero-fib:not(.is-photos)) .site-header::before { opacity: 0; }
 .hero-fib.is-undrawn .fib-spiral path { transition: stroke-dashoffset 2.6s cubic-bezier(.55, 0, .35, 1), opacity 1.2s var(--ease); }
 .fib-tile img.mont {
   z-index: 2; opacity: 0; transform: scale(1.08);
-  transition: opacity 1s var(--ease-io), transform 4.6s linear;
+  transition: opacity .8s var(--ease-io), transform 3.6s linear;
 }
 .fib-tile img.mont.is-on { opacity: 1; transform: scale(1); }
 
