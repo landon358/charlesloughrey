@@ -214,145 +214,130 @@
       const px = Math.max(tile.w, tile.h) * (devicePixelRatio || 1);
       return px <= 700 ? ph.t : px <= 1400 ? ph.m : ph.l;
     };
-    // frames for the flicker: big tiles use the 1400px flash set, small tiles the thumbnails
-    const frameSrc = (k, ph) => (Math.max(tiles[k].w, tiles[k].h) > 360 ? ph.f : ph.t);
-
-    const settleSlugs = (fibEl.dataset.settle || '').split(' ');
     const bySlug = Object.fromEntries(photos.map((p) => [p.s, p]));
-    const settle = tiles.map((_, k) => bySlug[settleSlugs[k]] || photos[k % photos.length]);
+    const list = (key) => (fibEl.dataset[key] || '').split(' ').map((s) => bySlug[s]).filter(Boolean);
+    const entry = list('entry');      // one photo per tile for the first reveal
+    const burst = list('burst');      // rapid fire in the single pane: best photos and drawings
+    const reel = list('montage');     // the slow montage that follows
+    const landing = bySlug[fibEl.dataset.land] || photos[0];
     const wait = (ms) => new Promise((r) => setTimeout(r, reduced ? 0 : ms));
     const loadImg = (src) => new Promise((res) => {
       const im = new Image(); im.decoding = 'async';
       im.onload = im.onerror = () => res(im); im.src = src;
     });
+    const bigSrc = (p) => (Math.max(geo.W, geo.H) * (devicePixelRatio || 1) > 1600 ? p.l : p.m);
+    const entryFor = (k) => entry[k % entry.length] || photos[k % photos.length];
+    // the entry set is on screen only briefly, so it uses lighter files (1280px at most)
+    const entrySrc = (tile, p) => (Math.max(tile.w, tile.h) * (devicePixelRatio || 1) <= 700 ? p.t : p.m);
 
-    // each tile flickers through its own pool so frames are cached before they are needed
-    const pools = tiles.map((_, k) => {
-      const big = Math.max(tiles[k].w, tiles[k].h) > 360;
-      const size = big ? 12 : 16;
-      const start = (k * 7) % photos.length;
-      return Array.from({ length: size }, (_, i) => photos[(start + i * 2) % photos.length]);
-    });
-    const framesReady = Promise.all(pools.flatMap((pool, k) => pool.map((p) => loadImg(frameSrc(k, p)))));
-    settle.forEach((p, k) => loadImg(pick(tiles[k], p)));
+    // warm the cache while the logo draws
+    const entryReady = Promise.all(tiles.map((tl, k) => loadImg(entrySrc(tl, entryFor(k)))));
+    const burstReady = Promise.all(burst.map((p) => loadImg(p.f)));
+    const landReady = loadImg(bigSrc(landing));
 
     tiles.forEach((tile) => {
-      tile.shuf = document.createElement('img'); tile.shuf.alt = '';
-      tile.fin = document.createElement('img'); tile.fin.className = 'settle';
-      tile.el.append(tile.shuf, tile.fin);
+      tile.img = document.createElement('img'); tile.img.alt = '';
+      tile.el.append(tile.img);
     });
 
-    const settleTile = (k) => {
-      const tile = tiles[k], p = settle[k];
-      tile.fin.alt = p.a;
-      tile.fin.src = pick(tile, p);
-      // (no requestAnimationFrame here: it pauses in background tabs, which left the
-      // final photo invisible; a forced reflow is enough to start the fade)
-      const on = () => {
-        void tile.fin.offsetWidth;
-        tile.fin.classList.add('is-on');
-        // once the final photo has faded in, retire the flicker frame beneath it
-        setTimeout(() => { tile.shuf.style.visibility = 'hidden'; }, 1300);
-      };
-      // decode() resolves even when the file came straight from cache (a plain load
-      // listener can miss that on mobile); the timeout is a last-resort safety net
-      let done = false;
-      const once = () => { if (!done) { done = true; on(); } };
-      (tile.fin.decode ? tile.fin.decode() : Promise.reject()).then(once, () => {
-        tile.fin.complete && tile.fin.naturalWidth ? once() : tile.fin.addEventListener('load', once, { once: true });
-      });
-      setTimeout(once, 3000);
-    };
+    // pale drawings get a deeper shade behind the title
+    const markSheet = (p) => hero.classList.toggle('is-sheet', !!(p && p.d));
 
-    // Which edge each tile's first photo slides in from: the first from the far side of its
-    // square, every later one from the side facing the previous square, so the entrance
+    // Each tile's photo slides in from the side facing the previous square, so the entrance
     // travels around the spiral (landscape: right, left, top, right, bottom, left, top ...).
     const OFF = { left: ['-100%', '0'], right: ['100%', '0'], top: ['0', '-100%'], bottom: ['0', '100%'] };
     const FAR = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' };
-    const entryFrom = (k) => (k === 0 ? FAR[geo.sq[0].d] : geo.sq[k - 1].d);
-    const SLIDE = 750;
+    const entryFrom = (k) => (k === 0 ? FAR[geo.sq[0].d] : geo.sq[k - 1].d || 'right');
+    const slideIn = (k) => {
+      const tile = tiles[k], p = entryFor(k);
+      const [sx, sy] = OFF[entryFrom(k)];
+      tile.img.style.setProperty('--sx', sx); tile.img.style.setProperty('--sy', sy);
+      tile.img.alt = p.a; tile.img.src = entrySrc(tile, p);
+      tile.img.classList.add('shuf', 'slide');
+    };
 
-    // one tile: its first photo slides in, then it flickers (frames ~55ms apart, easing out)
-    // until it lands at `end` ms after the explosion began
-    const explode = (k, delay, end) => new Promise((resolve) => {
-      const tile = tiles[k], pool = pools[k];
-      let last = -1, tNow = delay + SLIDE, gap = 55;
-      const next = () => {
-        let n; do { n = Math.floor(Math.random() * pool.length); } while (n === last && pool.length > 1);
-        return (last = n);
-      };
-      const frame = () => {
-        tile.shuf.classList.remove('slide');
-        tile.shuf.src = frameSrc(k, pool[next()]);
-        gap *= 1.16; tNow += gap;
-        if (tNow + gap > end) { setTimeout(() => { settleTile(k); resolve(); }, Math.max(0, end - tNow)); return; }
-        setTimeout(frame, gap);
-      };
-      setTimeout(() => {
-        const [sx, sy] = OFF[entryFrom(k)];
-        tile.shuf.style.setProperty('--sx', sx); tile.shuf.style.setProperty('--sy', sy);
-        tile.shuf.src = frameSrc(k, pool[next()]);
-        tile.shuf.classList.add('shuf', 'slide');
-        setTimeout(frame, SLIDE);
-      }, delay);
-    });
+    // a full-pane image that fades in over whatever is showing (landing and montage)
+    const big = tiles[0];
+    const fadeIn = async (p) => {
+      const im = await loadImg(bigSrc(p));
+      im.alt = p.a; im.className = 'mont';
+      big.el.appendChild(im);
+      void im.offsetWidth;
+      im.classList.add('is-on');
+      markSheet(p);
+      const prev = [...big.el.querySelectorAll('img')].filter((x) => x !== im);
+      setTimeout(() => prev.forEach((x) => x.remove()), 1200);
+    };
+
+    const expandBig = () => {
+      expanded = true;
+      hero.classList.add('is-expanded');
+      render();
+    };
+    const undraw = () => {
+      hero.classList.add('is-undrawn');
+      path.style.strokeDashoffset = -(parseFloat(path.style.strokeDasharray) || path.getTotalLength());
+    };
 
     (async () => {
       if (reduced) {
-        stage = 2; render();
+        stage = 2; expandBig(); undraw();
         hero.classList.add('is-drawn', 'is-photos', 'is-titled');
-        path.style.strokeDashoffset = 0;
-        tiles.forEach((_, k) => settleTile(k));
+        fadeIn(landing);
         return;
       }
-      // 1. green screen; the line begins in the green square as it forms
+      // 1. the logo builds: green, the red column, then the blue section, while the spiral draws
       await wait(700);
       stage = 1; render();
       hero.classList.add('is-drawn'); path.style.strokeDashoffset = 0;
       await wait(750);
       stage = 2; render();
-      // wait for the flicker frames, but never hold the logo more than ~2.5s on a slow connection
-      await Promise.all([wait(1500), Promise.race([framesReady, wait(2500)])]);
-      // 2. every tile explodes into photographs at once, then slows and settles (big tile last)
-      hero.classList.add('is-photos');
-      await Promise.all(tiles.map((_, k) => explode(k, k * 170, 3200 + (N - 1 - k) * 150)));
-      // 3. the title arrives once everything has landed
-      await wait(450);
-      hero.classList.add('is-titled');
+      await Promise.all([wait(1500), Promise.race([entryReady, wait(2500)])]);
 
-      // 4. three seconds later the big square opens out to fill the hero...
-      await wait(3000);
-      expanded = true;
-      hero.classList.add('is-expanded');
-      render();
-      // ...and once it has, the spiral undraws itself, from its start to its end
-      await wait(900);
-      hero.classList.add('is-undrawn');
-      path.style.strokeDashoffset = -(parseFloat(path.style.strokeDasharray) || path.getTotalLength());
-      await wait(2600);
+      // 2. one set of photographs comes in, a photo per square, sliding around the spiral
+      hero.classList.add('is-photos');
+      for (let k = 0; k < N; k++) { slideIn(k); await wait(170); }
+      await wait(1500);
+
+      // 3. the photographs give way to a single pane: the big square opens out to fill the hero
+      //    and the spiral undraws itself
+      expandBig();
+      await wait(500);
+      undraw();
+      await wait(1100);
       tiles.slice(1).forEach((tl) => { tl.el.style.visibility = 'hidden'; });
 
-      // 5. then a slow montage of the best work, crossfading with a gentle zoom
-      const reel = (fibEl.dataset.montage || '').split(' ').map((s) => bySlug[s]).filter(Boolean);
+      // 4. rapid fire of the best photographs and drawings in the single pane, slowing down
+      //    until it settles on the landing photograph
+      await Promise.race([burstReady, wait(1500)]);
+      const frame = big.img;
+      frame.classList.remove('slide');
+      let gap = 60, total = 0;
+      for (let i = 0; total < 3400; i++) {
+        const p = burst[i % burst.length];
+        frame.src = p.f; markSheet(p);
+        await wait(gap);
+        total += gap; gap *= 1.14;
+      }
+      await landReady;
+      await fadeIn(landing);
+
+      // 5. the title, logo and consultation link arrive once it has landed
+      await wait(600);
+      hero.classList.add('is-titled');
+
+      // 6. then the slow montage of photographs and drawings, crossfading with a gentle zoom
       if (!reel.length) return;
-      const big = tiles[0];
-      const srcFor = (p) => (Math.max(geo.W, geo.H) * (devicePixelRatio || 1) > 1600 ? p.l : p.m);
       let m = 0, paused = document.hidden;
       document.addEventListener('visibilitychange', () => { paused = document.hidden; });
       new IntersectionObserver(([e]) => { paused = !e.isIntersecting; }).observe(hero);
-      loadImg(srcFor(reel[0]));
+      loadImg(bigSrc(reel[0]));
+      await wait(1400);
       while (true) {
         await wait(2600);
         while (paused) await wait(500);
-        const p = reel[m % reel.length];
-        const im = await loadImg(srcFor(p));
-        im.alt = p.a; im.className = 'mont';
-        big.el.appendChild(im);
-        void im.offsetWidth;
-        im.classList.add('is-on');
-        loadImg(srcFor(reel[(m + 1) % reel.length]));
-        const prev = [...big.el.querySelectorAll('img')].filter((x) => x !== im);
-        setTimeout(() => prev.forEach((x) => x.remove()), 1200);
+        await fadeIn(reel[m % reel.length]);
+        loadImg(bigSrc(reel[(m + 1) % reel.length]));
         m++;
       }
     })();

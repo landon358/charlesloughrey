@@ -641,3 +641,11 @@ body:has(.hero-fib) .site-header.is-over-dark .brand { opacity: 0; pointer-event
 body:has(.hero-fib.is-titled) .site-header.is-over-dark .header-cta { opacity: 1; pointer-events: auto; }
 .menu-open .site-header .brand { opacity: 1 !important; pointer-events: auto !important; }
 .menu-open .header-cta { opacity: 0 !important; pointer-events: none !important; }
+
+/* ---------- V2 sequence: deeper shade behind the title while a pale drawing is showing ---------- */
+.fib::before {
+  content: ""; position: absolute; inset: 0; z-index: 10; pointer-events: none;
+  background: radial-gradient(65% 55% at 50% 50%, rgba(12,14,9,.42), rgba(12,14,9,.16) 85%);
+  opacity: 0; transition: opacity .7s var(--ease);
+}
+.hero-fib.is-sheet .fib::before { opacity: 1; }
